@@ -55,7 +55,7 @@ class Invoice:
     @property
     def indicator_accepts_expired_title(self):
         """ indicadorAceiteTituloVencido """
-        return self._indicator_accepts_expired_title
+        return "S" if self._indicator_accepts_expired_title else "N"
 
     @property
     def number_of_days_receiving_deadline(self):
@@ -65,7 +65,7 @@ class Invoice:
     @property
     def accept_code(self):
         """ codigoAceite """
-        return self._accept_code
+        return "S" if self._accept_code else "N"
 
     @property
     def title_type_code(self):
@@ -80,7 +80,7 @@ class Invoice:
     @property
     def partial_receipt_permission_indicator(self):
         """ indicadorPermissaoRecebimentoParcial """
-        return self._partial_receipt_permission_indicator
+        return "S" if self._partial_receipt_permission_indicator else "N"
 
     @property
     def beneficiary_title_number(self):
@@ -130,7 +130,7 @@ class Invoice:
     @property
     def pix_indicator(self):
         """ indicadorPix """
-        return self._pix_indicator
+        return "S" if self._pix_indicator else "N"
 
     @agreement_number.setter
     def agreement_number(self, value):
@@ -190,6 +190,8 @@ class Invoice:
     @indicator_accepts_expired_title.setter
     def indicator_accepts_expired_title(self, value):
         """ indicadorAceiteTituloVencido """
+        if not isinstance(value, bool):
+            raise TypeError("Only boolean values are accepted to indicator_accepts_expired_title")
         self._indicator_accepts_expired_title = value
 
     @number_of_days_receiving_deadline.setter
@@ -200,6 +202,8 @@ class Invoice:
     @accept_code.setter
     def accept_code(self, value):
         """ codigoAceite """
+        if not isinstance(value, bool):
+            raise TypeError("Only boolean values are accepted to accept_code")
         self._accept_code = value
 
     @title_type_code.setter
@@ -215,6 +219,8 @@ class Invoice:
     @partial_receipt_permission_indicator.setter
     def partial_receipt_permission_indicator(self, value):
         """ indicadorPermissaoRecebimentoParcial """
+        if not isinstance(value, bool):
+            raise TypeError("Only boolean values are accepted to partial_receipt_permission_indicator")
         self._partial_receipt_permission_indicator = value
 
     @beneficiary_title_number.setter
@@ -265,6 +271,8 @@ class Invoice:
     @pix_indicator.setter
     def pix_indicator(self, value):
         """ indicadorPix """
+        if not isinstance(value, bool):
+            raise TypeError("Only boolean values are accepted to pix_indicator")
         self._pix_indicator = value
 
     def to_dict(self):
@@ -375,12 +383,12 @@ if __name__ == '__main__':
     invoice_instance.number_of_protest_days = 0
     invoice_instance.number_of_days_to_negative = 0
     invoice_instance.negative_organ = 10
-    invoice_instance.indicator_accepts_expired_title = "S"
+    invoice_instance.indicator_accepts_expired_title = True
     invoice_instance.number_of_days_receiving_deadline = 1
-    invoice_instance.accept_code = "N"
+    invoice_instance.accept_code = False
     invoice_instance.title_type_code = 2
     invoice_instance.description_type_title = "DM"
-    invoice_instance.partial_receipt_permission_indicator = "S"
+    invoice_instance.partial_receipt_permission_indicator = True
     invoice_instance.beneficiary_title_number = "2A584SDGTE8JN2G"
     invoice_instance.customer_title_number = "00031285570689531552"
     invoice_instance.discount = {
@@ -421,6 +429,6 @@ if __name__ == '__main__':
         "numeroInscricao": 74910037000193,
         "nome": "Dirceu Borboleta"
     }
-    invoice_instance.pix_indicator = "N"
+    invoice_instance.pix_indicator = False
 
     print(invoice_instance.to_dict() == invoice)
