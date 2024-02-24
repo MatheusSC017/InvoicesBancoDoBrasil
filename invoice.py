@@ -1,4 +1,36 @@
+from validators import validate_date
+
+
 class Invoice:
+    def __init__(self):
+        self._agreement_number = None
+        self._wallet_number = None
+        self._wallet_variation_number = None
+        self._modality_code = None
+        self._issue_date = None
+        self._expiration_date = None
+        self._original_value = 0
+        self._rebate_value = 0
+        self._number_of_protest_days = 0
+        self._number_of_days_to_negative = 0
+        self._negative_organ = 0
+        self._indicator_accepts_expired_title = False
+        self._number_of_days_receiving_deadline = 0
+        self._accept_code = False
+        self._title_type_code = 0
+        self._description_type_title = ""
+        self._partial_receipt_permission_indicator = False
+        self._beneficiary_title_number = ""
+        self._customer_title_number = ""
+        self._discount = {"type": 0}
+        self._second_discount = None
+        self._third_discount = None
+        self._late_payment_interest = None
+        self._fine = None
+        self._payer = None
+        self._final_beneficiary = None
+        self._pix_indicator = False
+
     @property
     def agreement_number(self):
         """ numeroConvenio """
@@ -22,15 +54,19 @@ class Invoice:
     @property
     def issue_date(self):
         """ dataEmissao """
-        return self._issue_date
+        formatted_date = ''.join(filter(str.isdigit, self._issue_date))
+        return f"{formatted_date[6:]}.{formatted_date[4:6]}.{formatted_date[:4]}"
 
     @property
     def expiration_date(self):
-        return self._expiration_date
+        formatted_date = ''.join(filter(str.isdigit, self._expiration_date))
+        return f"{formatted_date[6:]}.{formatted_date[4:6]}.{formatted_date[:4]}"
 
     @property
     def original_value(self):
         """ valorOriginal """
+        if self._original_value <= 0:
+            raise ValueError("The original value must be greater than zero, define the bill value")
         return self._original_value
 
     @property
@@ -95,7 +131,23 @@ class Invoice:
     @property
     def discount(self):
         """ desconto """
-        return self._discount
+        fields = {
+            "type": "tipo",
+            "value": "valor",
+            "percentage": "porcentagem",
+            "expiration_date": "dataExpiracao"
+        }
+        return {fields[key]: self._discount[key] for key in self._discount.keys()}
+
+    @property
+    def discount_value(self):
+        """ desconto """
+        if self._discount['type'] == 0:
+            return 0
+        elif self._discount['type'] == 1:
+            return self._discount['value']
+        else:
+            return self._discount['percentage'] * self._original_value
 
     @property
     def second_discount(self):
@@ -135,75 +187,106 @@ class Invoice:
     @agreement_number.setter
     def agreement_number(self, value):
         """ numeroConvenio """
+        if not isinstance(value, int) or not(1000000 <= value <= 9999999):
+            raise ValueError("For the contract number only a 7-digit number will be accepted")
         self._agreement_number = value
 
     @wallet_number.setter
     def wallet_number(self, value):
         """ numeroCarteira """
+        if not isinstance(value, int):
+            raise ValueError("Wallet number only accepts number values")
         self._wallet_number = value
 
     @wallet_variation_number.setter
     def wallet_variation_number(self, value):
         """ numeroVariacaoCarteira """
+        if not isinstance(value, int):
+            raise ValueError("Wallet variation number only accepts number values")
         self._wallet_variation_number = value
 
     @modality_code.setter
     def modality_code(self, value):
         """ codigoModalidade """
+        if value != 1 and value != 4:
+            raise ValueError("Modality code only accepts the numbers 1 and 4")
         self._modality_code = value
 
     @issue_date.setter
     def issue_date(self, value):
         """ dataEmissao """
+        if not validate_date(value):
+            raise ValueError("Error when defining the issue date, for date type fields use the international format")
         self._issue_date = value
 
     @expiration_date.setter
     def expiration_date(self, value):
         """ dataVencimento """
+        if not validate_date(value):
+            raise ValueError("Error when defining the expiration date, "
+                             "for date type fields use the international format")
         self._expiration_date = value
 
     @original_value.setter
     def original_value(self, value):
         """ valorOriginal """
+        if (self._discount['type'] != 2 and value < self.rebate_value + self.discount_value) or \
+           (self._discount['type'] == 2 and value < self.rebate_value + (self._discount['percentage'] * value)):
+            raise ValueError("Invoice value in the register must be greater than the sum of the fields “rebate_value” "
+                             "and “discount”")
         self._original_value = value
 
     @rebate_value.setter
     def rebate_value(self, value):
         """ valorAbatimento """
+        if value < 0.0:
+            raise ValueError("The rebate amount must be greater than or equal to zero")
         self._rebate_value = value
 
     @number_of_protest_days.setter
     def number_of_protest_days(self, value):
         """ quantidadeDiasProtesto """
+        if value < 0.0:
+            raise ValueError("The number of protest days must be greater than or equal to zero")
+        if (value < 3 or value > 29) and value not in [0, 35, 40, 45]:
+            raise ValueError("The number of protest days must be 3 to 5 business days or "
+                             "6 to 29, 35, 40 or 45 calendar days")
+
         self._number_of_protest_days = value
 
     @number_of_days_to_negative.setter
     def number_of_days_to_negative(self, value):
         """ quantidadeDiasNegativacao """
+        if value < 0.0:
+            raise ValueError("The number of days to negative must be greater than or equal to zero")
         self._number_of_days_to_negative = value
 
     @negative_organ.setter
     def negative_organ(self, value):
         """ orgaoNegativador """
+        if value != 10 and value != 11:
+            raise ValueError("Error when defining the negative organ, choose a domain between 10 - SERASA; 11 - QUOD")
         self._negative_organ = value
 
     @indicator_accepts_expired_title.setter
     def indicator_accepts_expired_title(self, value):
         """ indicadorAceiteTituloVencido """
         if not isinstance(value, bool):
-            raise TypeError("Only boolean values are accepted to indicator_accepts_expired_title")
+            raise TypeError("Only boolean values are accepted to indicator accepts expired title")
         self._indicator_accepts_expired_title = value
 
     @number_of_days_receiving_deadline.setter
     def number_of_days_receiving_deadline(self, value):
         """ numeroDiasLimiteRecebimento """
+        if value < 0.0:
+            raise ValueError("The number of days receiving deadline must be greater than or equal to zero")
         self._number_of_days_receiving_deadline = value
 
     @accept_code.setter
     def accept_code(self, value):
         """ codigoAceite """
         if not isinstance(value, bool):
-            raise TypeError("Only boolean values are accepted to accept_code")
+            raise TypeError("Only boolean values are accepted to accept code")
         self._accept_code = value
 
     @title_type_code.setter
@@ -272,7 +355,7 @@ class Invoice:
     def pix_indicator(self, value):
         """ indicadorPix """
         if not isinstance(value, bool):
-            raise TypeError("Only boolean values are accepted to pix_indicator")
+            raise TypeError("Only boolean values are accepted to pix indicator")
         self._pix_indicator = value
 
     def to_dict(self):
@@ -318,7 +401,7 @@ if __name__ == '__main__':
         "dataVencimento": "31.03.2024",
         "valorOriginal": 123.45,
         "valorAbatimento": 12.34,
-        "quantidadeDiasProtesto": 0,
+        "quantidadeDiasProtesto": 5,
         "quantidadeDiasNegativacao": 0,
         "orgaoNegativador": 10,
         "indicadorAceiteTituloVencido": "S",
@@ -376,11 +459,11 @@ if __name__ == '__main__':
     invoice_instance.wallet_number = 17
     invoice_instance.wallet_variation_number = 35
     invoice_instance.modality_code = 1
-    invoice_instance.issue_date = "15.02.2024"
-    invoice_instance.expiration_date = "31.03.2024"
+    invoice_instance.issue_date = "2024-02-15"
+    invoice_instance.expiration_date = "2024-03-31"
     invoice_instance.original_value = 123.45
     invoice_instance.rebate_value = 12.34
-    invoice_instance.number_of_protest_days = 0
+    invoice_instance.number_of_protest_days = 5
     invoice_instance.number_of_days_to_negative = 0
     invoice_instance.negative_organ = 10
     invoice_instance.indicator_accepts_expired_title = True
@@ -392,9 +475,9 @@ if __name__ == '__main__':
     invoice_instance.beneficiary_title_number = "2A584SDGTE8JN2G"
     invoice_instance.customer_title_number = "00031285570689531552"
     invoice_instance.discount = {
-        "tipo": 2,
-        "dataExpiracao": "28.02.2024",
-        "porcentagem": 5
+        "type": 2,
+        "expiration_date": "28.02.2024",
+        "percentage": 5
     }
     invoice_instance.second_discount = {
         "dataExpiracao": "10.03.2024",
@@ -432,3 +515,4 @@ if __name__ == '__main__':
     invoice_instance.pix_indicator = False
 
     print(invoice_instance.to_dict() == invoice)
+    print(invoice_instance.to_dict())
