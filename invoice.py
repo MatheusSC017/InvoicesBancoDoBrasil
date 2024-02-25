@@ -1,4 +1,52 @@
+from patterns import *
+
 from validators import validate_date
+
+TITLE_TYPE_CODE_OPTIONS = {
+    1: 'CHEQUE',
+    2: 'DUPLICATA MERCANTIL',
+    3: 'DUPLICATA MTIL POR INDICACAO',
+    4: 'DUPLICATA DE SERVICO',
+    5: 'DUPLICATA DE SRVC P/INDICACAO',
+    6: 'DUPLICATA RURAL',
+    7: 'LETRA DE CAMBIO',
+    8: 'NOTA DE CREDITO COMERCIAL',
+    9: 'NOTA DE CREDITO A EXPORTACAO',
+    10: 'NOTA DE CREDITO INDULTRIAL',
+    11: 'NOTA DE CREDITO RURAL',
+    12: 'NOTA PROMISSORIA',
+    13: 'NOTA PROMISSORIA RURAL',
+    14: 'TRIPLICATA MERCANTIL',
+    15: 'TRIPLICATA DE SERVICO',
+    16: 'NOTA DE SEGURO',
+    17: 'RECIBO',
+    18: 'FATURA',
+    19: 'NOTA DE DEBITO',
+    20: 'APOLICE DE SEGURO',
+    21: 'MENSALIDADE ESCOLAR',
+    22: 'PARCELA DE CONSORCIO',
+    23: 'DIVIDA ATIVA DA UNIAO',
+    24: 'DIVIDA ATIVA DE ESTADO',
+    25: 'DIVIDA ATIVA DE MUNICIPIO',
+    31: 'CARTAO DE CREDITO',
+    32: 'BOLETO PROPOSTA',
+    33: 'BOLETO APORTE',
+    99: 'OUTROS'
+}
+
+FIELDS = {
+    "type": "tipo",
+    "value": "valor",
+    "percentage": "porcentagem",
+    "expiration_date": "dataExpiracao"
+}
+
+FIELDS_FORMATATION = {
+    "type": default_pattern,
+    "value": value_pattern,
+    "percentage": percentage_pattern,
+    "expiration_date": date_pattern
+}
 
 
 class Invoice:
@@ -54,24 +102,22 @@ class Invoice:
     @property
     def issue_date(self):
         """ dataEmissao """
-        formatted_date = ''.join(filter(str.isdigit, self._issue_date))
-        return f"{formatted_date[6:]}.{formatted_date[4:6]}.{formatted_date[:4]}"
+        return date_pattern(self._issue_date)
 
     @property
     def expiration_date(self):
-        formatted_date = ''.join(filter(str.isdigit, self._expiration_date))
-        return f"{formatted_date[6:]}.{formatted_date[4:6]}.{formatted_date[:4]}"
+        return date_pattern(self._expiration_date)
 
     @property
     def original_value(self):
         """ valorOriginal """
         if self._original_value <= 0:
             raise ValueError("The original value must be greater than zero, define the bill value")
-        return self._original_value
+        return value_pattern(self._original_value)
 
     @property
     def rebate_value(self):
-        return self._rebate_value
+        return value_pattern(self._rebate_value)
 
     @property
     def number_of_protest_days(self):
@@ -126,18 +172,14 @@ class Invoice:
     @property
     def customer_title_number(self):
         """ numeroTituloCliente """
-        return self._customer_title_number
+        if self._agreement_number is None:
+            raise ValueError("You must define the agreement number before")
+        return f"000{self._agreement_number}{self._customer_title_number}"
 
     @property
     def discount(self):
         """ desconto """
-        fields = {
-            "type": "tipo",
-            "value": "valor",
-            "percentage": "porcentagem",
-            "expiration_date": "dataExpiracao"
-        }
-        return {fields[key]: self._discount[key] for key in self._discount.keys()}
+        return {FIELDS[key]: FIELDS_FORMATATION[key](self._discount[key]) for key in self._discount.keys()}
 
     @property
     def discount_value(self):
@@ -152,12 +194,13 @@ class Invoice:
     @property
     def second_discount(self):
         """ segundoDesconto """
-        return self._second_discount
+        return {FIELDS[key]: FIELDS_FORMATATION[key](self._second_discount[key])
+                for key in self._second_discount.keys()}
 
     @property
     def third_discount(self):
         """ terceiroDesconto """
-        return self._third_discount
+        return {FIELDS[key]: FIELDS_FORMATATION[key](self._third_discount[key]) for key in self._third_discount.keys()}
 
     @property
     def late_payment_interest(self):
@@ -292,6 +335,8 @@ class Invoice:
     @title_type_code.setter
     def title_type_code(self, value):
         """ codigoTipoTitulo """
+        if value not in TITLE_TYPE_CODE_OPTIONS.keys():
+            raise ValueError(f"Only the next values are accepted: {TITLE_TYPE_CODE_OPTIONS}")
         self._title_type_code = value
 
     @description_type_title.setter
@@ -309,27 +354,88 @@ class Invoice:
     @beneficiary_title_number.setter
     def beneficiary_title_number(self, value):
         """ numeroTituloBeneficiario """
+        if len(value) > 15:
+            raise ValueError("the beneficiary's title number must be less than 15 characters")
         self._beneficiary_title_number = value
 
     @customer_title_number.setter
     def customer_title_number(self, value):
         """ numeroTituloCliente """
+        if len(value) != 10:
+            raise ValueError("Please enter only the last 10 digits of the customer's title number, as the first 10 "
+                             "will be filled in automatically following the pattern: 000 + agreement number (7 digits) "
+                             "+ control number (10 digits).")
         self._customer_title_number = value
 
     @discount.setter
-    def discount(self, value):
+    def discount(self, data):
         """ desconto """
-        self._discount = value
+        if data['type'] not in [0, 1, 2, ]:
+            raise ValueError("Invalid type, choose between the options: 0 - No discount; 1 - Fixed value until the "
+                             "informed date; 2 - percentage up to the informed date.")
+
+        self._discount = {'type': data['type'], }
+        if data['type'] != 0:
+            if not validate_date(data['expiration_date']):
+                raise ValueError("Error when defining the discount date, "
+                                 "for date type fields use the international format")
+            self._discount['expiration_date'] = data['expiration_date']
+
+            if data['type'] == 1:
+                if data['value'] > self._original_value - self.rebate_value:
+                    raise ValueError("Invoice value in the register must be greater than the sum of the fields "
+                                     "“rebate_value” and “discount”")
+                self._discount['value'] = data['value']
+            else:
+                if data['percentage'] >= 1 or data['percentage'] == 0:
+                    raise ValueError("The percentage must be a number between 0 and 1")
+                if (data['percentage'] * self._original_value) > self._original_value - self.rebate_value:
+                    raise ValueError("Invoice value in the register must be greater than the sum of the fields "
+                                     "“rebate_value” and “discount”")
+                self._discount['percentage'] = data['percentage']
 
     @second_discount.setter
-    def second_discount(self, value):
+    def second_discount(self, data):
         """ segundoDesconto """
-        self._second_discount = value
+        if self._discount is None or self._discount['type'] == 0:
+            raise ValueError("To define the second discount you must configure the first discount, with a type other "
+                             "than 0")
+
+        self._second_discount = {'expiration_date': data['expiration_date']}
+
+        if self._discount['type'] == 1:
+            if data['value'] >= self._discount['value']:
+                raise ValueError("The value of the second discount must be lower than the first")
+            self._second_discount['value'] = data['value']
+        else:
+            if data['percentage'] >= 1 or data['percentage'] == 0:
+                raise ValueError("The percentage must be a number between 0 and 1")
+            if data['percentage'] >= self._discount['percentage']:
+                raise ValueError("The percentage of the second discount must be lower than the first")
+            self._second_discount['percentage'] = data['percentage']
 
     @third_discount.setter
-    def third_discount(self, value):
+    def third_discount(self, data):
         """ terceiroDesconto """
-        self._third_discount = value
+        if self._discount is None or self._discount['type'] == 0:
+            raise ValueError("To define the third discount you must configure the first discount, with a type other "
+                             "than 0")
+
+        if self._second_discount is None:
+            raise ValueError("To define the third discount you must configure the second discount")
+
+        self._third_discount = {'expiration_date': data['expiration_date']}
+
+        if self._discount['type'] == 1:
+            if data['value'] >= self._second_discount['value']:
+                raise ValueError("The value of the third discount must be lower than the second")
+            self._third_discount['value'] = data['value']
+        else:
+            if data['percentage'] >= 1 or data['percentage'] == 0:
+                raise ValueError("The percentage must be a number between 0 and 1")
+            if data['percentage'] >= self._second_discount['percentage']:
+                raise ValueError("The percentage of the value discount must be lower than the second")
+            self._third_discount['percentage'] = data['percentage']
 
     @late_payment_interest.setter
     def late_payment_interest(self, value):
@@ -360,34 +466,36 @@ class Invoice:
 
     def to_dict(self):
         result = {
-            "numeroConvenio": self.agreement_number,
-            "numeroCarteira": self.wallet_number,
-            "numeroVariacaoCarteira": self.wallet_variation_number,
-            "codigoModalidade": self.modality_code,
-            "dataEmissao": self.issue_date,
-            "dataVencimento": self.expiration_date,
-            "valorOriginal": self.original_value,
-            "valorAbatimento": self.rebate_value,
-            "quantidadeDiasProtesto": self.number_of_protest_days,
-            "quantidadeDiasNegativacao": self.number_of_days_to_negative,
-            "orgaoNegativador": self.negative_organ,
-            "indicadorAceiteTituloVencido": self.indicator_accepts_expired_title,
-            "numeroDiasLimiteRecebimento": self.number_of_days_receiving_deadline,
-            "codigoAceite": self.accept_code,
-            "codigoTipoTitulo": self.title_type_code,
-            "descricaoTipoTitulo": self.description_type_title,
-            "indicadorPermissaoRecebimentoParcial": self.partial_receipt_permission_indicator,
-            "numeroTituloBeneficiario": self.beneficiary_title_number,
-            "numeroTituloCliente": self.customer_title_number,
-            "desconto": self.discount,
-            "segundoDesconto": self.second_discount,
-            "terceiroDesconto": self.third_discount,
-            "jurosMora": self.late_payment_interest,
-            "multa": self.fine,
-            "pagador": self.payer,
-            "beneficiarioFinal": self.final_beneficiary,
-            "indicadorPix": self.pix_indicator
+            'numeroConvenio': self.agreement_number,
+            'numeroCarteira': self.wallet_number,
+            'numeroVariacaoCarteira': self.wallet_variation_number,
+            'codigoModalidade': self.modality_code,
+            'dataEmissao': self.issue_date,
+            'dataVencimento': self.expiration_date,
+            'valorOriginal': self.original_value,
+            'valorAbatimento': self.rebate_value,
+            'quantidadeDiasProtesto': self.number_of_protest_days,
+            'quantidadeDiasNegativacao': self.number_of_days_to_negative,
+            'orgaoNegativador': self.negative_organ,
+            'indicadorAceiteTituloVencido': self.indicator_accepts_expired_title,
+            'numeroDiasLimiteRecebimento': self.number_of_days_receiving_deadline,
+            'codigoAceite': self.accept_code,
+            'codigoTipoTitulo': self.title_type_code,
+            'descricaoTipoTitulo': self.description_type_title,
+            'indicadorPermissaoRecebimentoParcial': self.partial_receipt_permission_indicator,
+            'numeroTituloBeneficiario': self.beneficiary_title_number,
+            'numeroTituloCliente': self.customer_title_number,
+            'desconto': self.discount,
+            'jurosMora': self.late_payment_interest,
+            'multa': self.fine,
+            'pagador': self.payer,
+            'beneficiarioFinal': self.final_beneficiary,
+            'indicadorPix': self.pix_indicator
         }
+        if result['desconto']['tipo'] != 0:
+            result['segundoDesconto'] = self.second_discount
+            result['terceiroDesconto'] = self.third_discount
+
         return result
 
 
@@ -415,15 +523,7 @@ if __name__ == '__main__':
         "desconto": {
             "tipo": 2,
             "dataExpiracao": "28.02.2024",
-            "porcentagem": 5
-        },
-        "segundoDesconto": {
-            "dataExpiracao": "10.03.2024",
-            "porcentagem": 4
-        },
-        "terceiroDesconto": {
-            "dataExpiracao": "20.03.2024",
-            "porcentagem": 3
+            "porcentagem": 5.0
         },
         "jurosMora": {
             "tipo": 2,
@@ -450,7 +550,15 @@ if __name__ == '__main__':
             "numeroInscricao": 74910037000193,
             "nome": "Dirceu Borboleta"
         },
-        "indicadorPix": "N"
+        "indicadorPix": "N",
+        "segundoDesconto": {
+            "dataExpiracao": "10.03.2024",
+            "porcentagem": 4.0
+        },
+        "terceiroDesconto": {
+            "dataExpiracao": "20.03.2024",
+            "porcentagem": 3.0
+        },
     }
 
     invoice_instance = Invoice()
@@ -473,19 +581,19 @@ if __name__ == '__main__':
     invoice_instance.description_type_title = "DM"
     invoice_instance.partial_receipt_permission_indicator = True
     invoice_instance.beneficiary_title_number = "2A584SDGTE8JN2G"
-    invoice_instance.customer_title_number = "00031285570689531552"
+    invoice_instance.customer_title_number = "0689531552"
     invoice_instance.discount = {
         "type": 2,
-        "expiration_date": "28.02.2024",
-        "percentage": 5
+        "expiration_date": "2024-02-28",
+        "percentage": 0.05
     }
     invoice_instance.second_discount = {
-        "dataExpiracao": "10.03.2024",
-        "porcentagem": 4
+        "expiration_date": "2024-03-10",
+        "percentage": 0.04
     }
     invoice_instance.third_discount = {
-        "dataExpiracao": "20.03.2024",
-        "porcentagem": 3
+        "expiration_date": "2024-03-20",
+        "percentage": 0.03
     }
     invoice_instance.late_payment_interest = {
         "tipo": 2,
@@ -515,4 +623,5 @@ if __name__ == '__main__':
     invoice_instance.pix_indicator = False
 
     print(invoice_instance.to_dict() == invoice)
+    print(invoice)
     print(invoice_instance.to_dict())
