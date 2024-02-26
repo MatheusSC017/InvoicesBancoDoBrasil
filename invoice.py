@@ -38,14 +38,16 @@ FIELDS = {
     "type": "tipo",
     "value": "valor",
     "percentage": "porcentagem",
-    "expiration_date": "dataExpiracao"
+    "expiration_date": "dataExpiracao",
+    "date": "data",
 }
 
 FIELDS_FORMATATION = {
     "type": default_pattern,
     "value": value_pattern,
     "percentage": percentage_pattern,
-    "expiration_date": date_pattern
+    "expiration_date": date_pattern,
+    "date": date_pattern,
 }
 
 
@@ -205,12 +207,13 @@ class Invoice:
     @property
     def late_payment_interest(self):
         """ jurosMora """
-        return self._late_payment_interest
+        return {FIELDS[key]: FIELDS_FORMATATION[key](self._late_payment_interest[key])
+                for key in self._late_payment_interest.keys()}
 
     @property
     def fine(self):
         """ multa """
-        return self._fine
+        return {FIELDS[key]: FIELDS_FORMATATION[key](self._fine[key]) for key in self._fine.keys()}
 
     @property
     def payer(self):
@@ -370,24 +373,24 @@ class Invoice:
     @discount.setter
     def discount(self, data):
         """ desconto """
-        if data['type'] not in [0, 1, 2, ]:
+        if 'type' not in data.keys() or data['type'] not in [0, 1, 2, ]:
             raise ValueError("Invalid type, choose between the options: 0 - No discount; 1 - Fixed value until the "
                              "informed date; 2 - percentage up to the informed date.")
 
         self._discount = {'type': data['type'], }
         if data['type'] != 0:
-            if not validate_date(data['expiration_date']):
+            if 'expiration_date' not in data.keys() or not validate_date(data['expiration_date']):
                 raise ValueError("Error when defining the discount date, "
                                  "for date type fields use the international format")
             self._discount['expiration_date'] = data['expiration_date']
 
             if data['type'] == 1:
-                if data['value'] > self._original_value - self.rebate_value:
+                if 'value' not in data.keys() or data['value'] > self._original_value - self.rebate_value:
                     raise ValueError("Invoice value in the register must be greater than the sum of the fields "
                                      "“rebate_value” and “discount”")
                 self._discount['value'] = data['value']
             else:
-                if data['percentage'] >= 1 or data['percentage'] == 0:
+                if 'percentage' not in data.keys() or data['percentage'] >= 1 or data['percentage'] == 0:
                     raise ValueError("The percentage must be a number between 0 and 1")
                 if (data['percentage'] * self._original_value) > self._original_value - self.rebate_value:
                     raise ValueError("Invoice value in the register must be greater than the sum of the fields "
@@ -401,14 +404,16 @@ class Invoice:
             raise ValueError("To define the second discount you must configure the first discount, with a type other "
                              "than 0")
 
+        if 'expiration_date' not in data.keys() or not validate_date(data['expiration_date']):
+            raise ValueError("The expiration date is required, for date type fields use the international format")
         self._second_discount = {'expiration_date': data['expiration_date']}
 
         if self._discount['type'] == 1:
-            if data['value'] >= self._discount['value']:
+            if 'value' not in data.keys() or data['value'] >= self._discount['value']:
                 raise ValueError("The value of the second discount must be lower than the first")
             self._second_discount['value'] = data['value']
         else:
-            if data['percentage'] >= 1 or data['percentage'] == 0:
+            if 'percentage' not in data.keys() or data['percentage'] >= 1 or data['percentage'] == 0:
                 raise ValueError("The percentage must be a number between 0 and 1")
             if data['percentage'] >= self._discount['percentage']:
                 raise ValueError("The percentage of the second discount must be lower than the first")
@@ -424,28 +429,61 @@ class Invoice:
         if self._second_discount is None:
             raise ValueError("To define the third discount you must configure the second discount")
 
+        if 'expiration_date' not in data.keys() or not validate_date(data['expiration_date']):
+            raise ValueError("The expiration date is required, for date type fields use the international format")
         self._third_discount = {'expiration_date': data['expiration_date']}
 
         if self._discount['type'] == 1:
-            if data['value'] >= self._second_discount['value']:
+            if 'value' not in data.keys() or data['value'] >= self._second_discount['value']:
                 raise ValueError("The value of the third discount must be lower than the second")
             self._third_discount['value'] = data['value']
         else:
-            if data['percentage'] >= 1 or data['percentage'] == 0:
+            if 'percentage' not in data.keys() or data['percentage'] >= 1 or data['percentage'] == 0:
                 raise ValueError("The percentage must be a number between 0 and 1")
             if data['percentage'] >= self._second_discount['percentage']:
                 raise ValueError("The percentage of the value discount must be lower than the second")
             self._third_discount['percentage'] = data['percentage']
 
     @late_payment_interest.setter
-    def late_payment_interest(self, value):
+    def late_payment_interest(self, data):
         """ jurosMora """
-        self._late_payment_interest = value
+        if 'type' not in data.keys() or data['type'] not in [0, 1, 2, 3]:
+            raise ValueError("Invalid type, choose between the options: 0 - Dismiss; 1 - Fixed amount per day of "
+                             "delay; 2 - Monthly fee; 3 - Exempt.")
+
+        self._late_payment_interest = {'type': data['type']}
+
+        if data['type'] == 1:
+            if 'value' not in data.keys():
+                raise ValueError("For this type of interest, enter the fixed daily amount")
+            self._late_payment_interest['value'] = data['value']
+        elif data['type'] == 2:
+            if 'percentage' not in data.keys() or data['percentage'] >= 1 or data['percentage'] == 0:
+                raise ValueError("The percentage must be a number between 0 and 1")
+            self._late_payment_interest['percentage'] = data['percentage']
 
     @fine.setter
-    def fine(self, value):
+    def fine(self, data):
         """ multa """
-        self._fine = value
+        if 'type' not in data.keys() or data['type'] not in [0, 1, 2, ]:
+            raise ValueError("Invalid type, choose between the options: 0 - Dismiss; 1 - Fixed value (from the date "
+                             "stipulated in the registration); 2 - Percentage (from the date stipulated in the "
+                             "registration).")
+
+        self._fine = {'type': data['type']}
+
+        if 'date' not in data.keys() or not validate_date(data['date']):
+            raise ValueError("The date is required, for date type fields use the international format")
+        self._fine['date'] = data['date']
+
+        if data['type'] == 1:
+            if 'value' not in data.keys():
+                raise ValueError("For this type of _fine, enter the fixed daily amount")
+            self._fine['value'] = data['value']
+        elif data['type'] == 2:
+            if 'percentage' not in data.keys() or data['percentage'] >= 1 or data['percentage'] == 0:
+                raise ValueError("The percentage must be a number between 0 and 1")
+            self._fine['percentage'] = data['percentage']
 
     @payer.setter
     def payer(self, value):
@@ -596,13 +634,13 @@ if __name__ == '__main__':
         "percentage": 0.03
     }
     invoice_instance.late_payment_interest = {
-        "tipo": 2,
-        "porcentagem": 1.00
+        "type": 2,
+        "percentage": 0.01
     }
     invoice_instance.fine = {
-        "tipo": 1,
-        "data": "01.04.2024",
-        "valor": 10.00
+        "type": 1,
+        "date": "2024-04-01",
+        "value": 10.00
     }
     invoice_instance.payer = {
         "tipoInscricao": 1,
