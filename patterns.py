@@ -11,5 +11,5 @@ def percentage_pattern(percentage):
     return percentage * 100
 
 
-def default_pattern(value):
+def no_pattern(value):
     return value

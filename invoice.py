@@ -1,38 +1,6 @@
-from patterns import *
-
-from validators import validate_date
-
-TITLE_TYPE_CODE_OPTIONS = {
-    1: 'CHEQUE',
-    2: 'DUPLICATA MERCANTIL',
-    3: 'DUPLICATA MTIL POR INDICACAO',
-    4: 'DUPLICATA DE SERVICO',
-    5: 'DUPLICATA DE SRVC P/INDICACAO',
-    6: 'DUPLICATA RURAL',
-    7: 'LETRA DE CAMBIO',
-    8: 'NOTA DE CREDITO COMERCIAL',
-    9: 'NOTA DE CREDITO A EXPORTACAO',
-    10: 'NOTA DE CREDITO INDULTRIAL',
-    11: 'NOTA DE CREDITO RURAL',
-    12: 'NOTA PROMISSORIA',
-    13: 'NOTA PROMISSORIA RURAL',
-    14: 'TRIPLICATA MERCANTIL',
-    15: 'TRIPLICATA DE SERVICO',
-    16: 'NOTA DE SEGURO',
-    17: 'RECIBO',
-    18: 'FATURA',
-    19: 'NOTA DE DEBITO',
-    20: 'APOLICE DE SEGURO',
-    21: 'MENSALIDADE ESCOLAR',
-    22: 'PARCELA DE CONSORCIO',
-    23: 'DIVIDA ATIVA DA UNIAO',
-    24: 'DIVIDA ATIVA DE ESTADO',
-    25: 'DIVIDA ATIVA DE MUNICIPIO',
-    31: 'CARTAO DE CREDITO',
-    32: 'BOLETO PROPOSTA',
-    33: 'BOLETO APORTE',
-    99: 'OUTROS'
-}
+from patterns import value_pattern, date_pattern, percentage_pattern, no_pattern
+from validators import validate_date, validate_cpf, validate_cnpj
+from custom_types import LatePaymentType, Fine, RegistrationType, DiscountType, TitleTypeCode, FieldEnum
 
 FIELDS = {
     "type": "tipo",
@@ -40,10 +8,13 @@ FIELDS = {
     "percentage": "porcentagem",
     "expiration_date": "dataExpiracao",
     "date": "data",
+    "registration_type": "tipoInscricao",
+    "registration_number": "numeroInscricao",
+    "name": "nome",
 }
 
 FIELDS_FORMATATION = {
-    "type": default_pattern,
+    "type": no_pattern,
     "value": value_pattern,
     "percentage": percentage_pattern,
     "expiration_date": date_pattern,
@@ -181,7 +152,8 @@ class Invoice:
     @property
     def discount(self):
         """ desconto """
-        return {FIELDS[key]: FIELDS_FORMATATION[key](self._discount[key]) for key in self._discount.keys()}
+        return {getattr(FieldEnum, key.upper()).value: FIELDS_FORMATATION[key](self._discount[key])
+                for key in self._discount.keys()}
 
     @property
     def discount_value(self):
@@ -196,24 +168,26 @@ class Invoice:
     @property
     def second_discount(self):
         """ segundoDesconto """
-        return {FIELDS[key]: FIELDS_FORMATATION[key](self._second_discount[key])
+        return {getattr(FieldEnum, key.upper()).value: FIELDS_FORMATATION[key](self._second_discount[key])
                 for key in self._second_discount.keys()}
 
     @property
     def third_discount(self):
         """ terceiroDesconto """
-        return {FIELDS[key]: FIELDS_FORMATATION[key](self._third_discount[key]) for key in self._third_discount.keys()}
+        return {getattr(FieldEnum, key.upper()).value: FIELDS_FORMATATION[key](self._third_discount[key])
+                for key in self._third_discount.keys()}
 
     @property
     def late_payment_interest(self):
         """ jurosMora """
-        return {FIELDS[key]: FIELDS_FORMATATION[key](self._late_payment_interest[key])
+        return {getattr(FieldEnum, key.upper()).value: FIELDS_FORMATATION[key](self._late_payment_interest[key])
                 for key in self._late_payment_interest.keys()}
 
     @property
     def fine(self):
         """ multa """
-        return {FIELDS[key]: FIELDS_FORMATATION[key](self._fine[key]) for key in self._fine.keys()}
+        return {getattr(FieldEnum, key.upper()).value: FIELDS_FORMATATION[key](self._fine[key])
+                for key in self._fine.keys()}
 
     @property
     def payer(self):
@@ -223,7 +197,8 @@ class Invoice:
     @property
     def final_beneficiary(self):
         """ beneficiarioFinal """
-        return self._final_beneficiary
+        return {getattr(FieldEnum, key.upper()).value: self._final_beneficiary[key]
+                for key in self._final_beneficiary.keys()}
 
     @property
     def pix_indicator(self):
@@ -338,8 +313,8 @@ class Invoice:
     @title_type_code.setter
     def title_type_code(self, value):
         """ codigoTipoTitulo """
-        if value not in TITLE_TYPE_CODE_OPTIONS.keys():
-            raise ValueError(f"Only the next values are accepted: {TITLE_TYPE_CODE_OPTIONS}")
+        if value not in [item.value for item in TitleTypeCode]:
+            raise ValueError(f"Only the next values are accepted: {list(TitleTypeCode)}")
         self._title_type_code = value
 
     @description_type_title.setter
@@ -371,56 +346,65 @@ class Invoice:
         self._customer_title_number = value
 
     @discount.setter
-    def discount(self, data):
+    def discount(self, discount_data):
         """ desconto """
-        if 'type' not in data.keys() or data['type'] not in [0, 1, 2, ]:
+        if 'type' not in discount_data.keys() or discount_data['type'] not in [item.value for item in DiscountType]:
             raise ValueError("Invalid type, choose between the options: 0 - No discount; 1 - Fixed value until the "
                              "informed date; 2 - percentage up to the informed date.")
 
-        self._discount = {'type': data['type'], }
-        if data['type'] != 0:
-            if 'expiration_date' not in data.keys() or not validate_date(data['expiration_date']):
+        discount = {'type': discount_data['type'], }
+        if discount_data['type'] != 0:
+            if 'expiration_date' not in discount_data.keys() or not validate_date(discount_data['expiration_date']):
                 raise ValueError("Error when defining the discount date, "
                                  "for date type fields use the international format")
-            self._discount['expiration_date'] = data['expiration_date']
+            discount['expiration_date'] = discount_data['expiration_date']
 
-            if data['type'] == 1:
-                if 'value' not in data.keys() or data['value'] > self._original_value - self.rebate_value:
+            if discount_data['type'] == 1:
+                if 'value' not in discount_data.keys() or \
+                   discount_data['value'] > self._original_value - self.rebate_value:
                     raise ValueError("Invoice value in the register must be greater than the sum of the fields "
                                      "“rebate_value” and “discount”")
-                self._discount['value'] = data['value']
+                discount['value'] = discount_data['value']
             else:
-                if 'percentage' not in data.keys() or data['percentage'] >= 1 or data['percentage'] == 0:
+                if 'percentage' not in discount_data.keys() \
+                   or discount_data['percentage'] >= 1 \
+                   or discount_data['percentage'] == 0:
                     raise ValueError("The percentage must be a number between 0 and 1")
-                if (data['percentage'] * self._original_value) > self._original_value - self.rebate_value:
+                if (discount_data['percentage'] * self._original_value) > self._original_value - self.rebate_value:
                     raise ValueError("Invoice value in the register must be greater than the sum of the fields "
                                      "“rebate_value” and “discount”")
-                self._discount['percentage'] = data['percentage']
+                discount['percentage'] = discount_data['percentage']
+
+        self._discount = discount
 
     @second_discount.setter
-    def second_discount(self, data):
+    def second_discount(self, discount_data):
         """ segundoDesconto """
         if self._discount is None or self._discount['type'] == 0:
             raise ValueError("To define the second discount you must configure the first discount, with a type other "
                              "than 0")
 
-        if 'expiration_date' not in data.keys() or not validate_date(data['expiration_date']):
+        if 'expiration_date' not in discount_data.keys() or not validate_date(discount_data['expiration_date']):
             raise ValueError("The expiration date is required, for date type fields use the international format")
-        self._second_discount = {'expiration_date': data['expiration_date']}
+        second_discount = {'expiration_date': discount_data['expiration_date']}
 
         if self._discount['type'] == 1:
-            if 'value' not in data.keys() or data['value'] >= self._discount['value']:
+            if 'value' not in discount_data.keys() or discount_data['value'] >= self._discount['value']:
                 raise ValueError("The value of the second discount must be lower than the first")
-            self._second_discount['value'] = data['value']
+            second_discount['value'] = discount_data['value']
         else:
-            if 'percentage' not in data.keys() or data['percentage'] >= 1 or data['percentage'] == 0:
+            if 'percentage' not in discount_data.keys() or \
+               discount_data['percentage'] >= 1 or \
+               discount_data['percentage'] == 0:
                 raise ValueError("The percentage must be a number between 0 and 1")
-            if data['percentage'] >= self._discount['percentage']:
+            if discount_data['percentage'] >= self._discount['percentage']:
                 raise ValueError("The percentage of the second discount must be lower than the first")
-            self._second_discount['percentage'] = data['percentage']
+            second_discount['percentage'] = discount_data['percentage']
+
+        self._second_discount = second_discount
 
     @third_discount.setter
-    def third_discount(self, data):
+    def third_discount(self, discount_data):
         """ terceiroDesconto """
         if self._discount is None or self._discount['type'] == 0:
             raise ValueError("To define the third discount you must configure the first discount, with a type other "
@@ -429,61 +413,71 @@ class Invoice:
         if self._second_discount is None:
             raise ValueError("To define the third discount you must configure the second discount")
 
-        if 'expiration_date' not in data.keys() or not validate_date(data['expiration_date']):
+        if 'expiration_date' not in discount_data.keys() or not validate_date(discount_data['expiration_date']):
             raise ValueError("The expiration date is required, for date type fields use the international format")
-        self._third_discount = {'expiration_date': data['expiration_date']}
+        third_discount = {'expiration_date': discount_data['expiration_date']}
 
         if self._discount['type'] == 1:
-            if 'value' not in data.keys() or data['value'] >= self._second_discount['value']:
+            if 'value' not in discount_data.keys() or discount_data['value'] >= self._second_discount['value']:
                 raise ValueError("The value of the third discount must be lower than the second")
-            self._third_discount['value'] = data['value']
+            third_discount['value'] = discount_data['value']
         else:
-            if 'percentage' not in data.keys() or data['percentage'] >= 1 or data['percentage'] == 0:
+            if 'percentage' not in discount_data.keys() or \
+               discount_data['percentage'] >= 1 or \
+               discount_data['percentage'] == 0:
                 raise ValueError("The percentage must be a number between 0 and 1")
-            if data['percentage'] >= self._second_discount['percentage']:
+            if discount_data['percentage'] >= self._second_discount['percentage']:
                 raise ValueError("The percentage of the value discount must be lower than the second")
-            self._third_discount['percentage'] = data['percentage']
+            third_discount['percentage'] = discount_data['percentage']
+
+        self._third_discount = third_discount
 
     @late_payment_interest.setter
-    def late_payment_interest(self, data):
+    def late_payment_interest(self, interest_data):
         """ jurosMora """
-        if 'type' not in data.keys() or data['type'] not in [0, 1, 2, 3]:
+        if 'type' not in interest_data.keys() or interest_data['type'] not in [item.value for item in LatePaymentType]:
             raise ValueError("Invalid type, choose between the options: 0 - Dismiss; 1 - Fixed amount per day of "
                              "delay; 2 - Monthly fee; 3 - Exempt.")
 
-        self._late_payment_interest = {'type': data['type']}
+        late_payment_interest = {'type': interest_data['type']}
 
-        if data['type'] == 1:
-            if 'value' not in data.keys():
+        if interest_data['type'] == 1:
+            if 'value' not in interest_data.keys():
                 raise ValueError("For this type of interest, enter the fixed daily amount")
-            self._late_payment_interest['value'] = data['value']
-        elif data['type'] == 2:
-            if 'percentage' not in data.keys() or data['percentage'] >= 1 or data['percentage'] == 0:
+            late_payment_interest['value'] = interest_data['value']
+        elif interest_data['type'] == 2:
+            if 'percentage' not in interest_data.keys() \
+               or interest_data['percentage'] >= 1 \
+               or interest_data['percentage'] == 0:
                 raise ValueError("The percentage must be a number between 0 and 1")
-            self._late_payment_interest['percentage'] = data['percentage']
+            late_payment_interest['percentage'] = interest_data['percentage']
+
+        self._late_payment_interest = late_payment_interest
 
     @fine.setter
-    def fine(self, data):
+    def fine(self, fine_data):
         """ multa """
-        if 'type' not in data.keys() or data['type'] not in [0, 1, 2, ]:
+        if 'type' not in fine_data.keys() or fine_data['type'] not in [item.value for item in Fine]:
             raise ValueError("Invalid type, choose between the options: 0 - Dismiss; 1 - Fixed value (from the date "
                              "stipulated in the registration); 2 - Percentage (from the date stipulated in the "
                              "registration).")
 
-        self._fine = {'type': data['type']}
+        fine = {'type': fine_data['type']}
 
-        if 'date' not in data.keys() or not validate_date(data['date']):
+        if 'date' not in fine_data.keys() or not validate_date(fine_data['date']):
             raise ValueError("The date is required, for date type fields use the international format")
-        self._fine['date'] = data['date']
+        fine['date'] = fine_data['date']
 
-        if data['type'] == 1:
-            if 'value' not in data.keys():
+        if fine_data['type'] == 1:
+            if 'value' not in fine_data.keys():
                 raise ValueError("For this type of _fine, enter the fixed daily amount")
-            self._fine['value'] = data['value']
-        elif data['type'] == 2:
-            if 'percentage' not in data.keys() or data['percentage'] >= 1 or data['percentage'] == 0:
+            fine['value'] = fine_data['value']
+        elif fine_data['type'] == 2:
+            if 'percentage' not in fine_data.keys() or fine_data['percentage'] >= 1 or fine_data['percentage'] == 0:
                 raise ValueError("The percentage must be a number between 0 and 1")
-            self._fine['percentage'] = data['percentage']
+            fine['percentage'] = fine_data['percentage']
+
+        self._fine = fine
 
     @payer.setter
     def payer(self, value):
@@ -491,9 +485,30 @@ class Invoice:
         self._payer = value
 
     @final_beneficiary.setter
-    def final_beneficiary(self, value):
+    def final_beneficiary(self, data):
         """ beneficiarioFinal """
-        self._final_beneficiary = value
+        if self._title_type_code == 32:
+            raise ValueError("proposal slip does not allow final beneficiary")
+
+        if 'registration_type' not in data.keys() or \
+           data['registration_type'] not in [item.value for item in RegistrationType]:
+            raise ValueError("Invalid type, choose between the options: 1 - CPF; 2 - CNPJ.")
+
+        final_beneficiary = {'registration_type': data['registration_type']}
+
+        if 'registration_number' not in data.keys():
+            raise ValueError("The registration number is required")
+
+        if 'name' not in data.keys():
+            raise ValueError("The name is required")
+
+        if (data['registration_type'] == 1 and not validate_cpf(str(data['registration_number']))) or \
+           (data['registration_type'] == 2 and not validate_cnpj(str(data['registration_number']))):
+            raise ValueError("Invalid registration number, enter a valid CPF or CNPJ according to the type chosen")
+        final_beneficiary['registration_number'] = data['registration_number']
+        final_beneficiary['name'] = data['name']
+
+        self._final_beneficiary = final_beneficiary
 
     @pix_indicator.setter
     def pix_indicator(self, value):
@@ -654,9 +669,9 @@ if __name__ == '__main__':
         "telefone": "63987654321"
     }
     invoice_instance.final_beneficiary = {
-        "tipoInscricao": 2,
-        "numeroInscricao": 74910037000193,
-        "nome": "Dirceu Borboleta"
+        "registration_type": 2,
+        "registration_number": 74910037000193,
+        "name": "Dirceu Borboleta"
     }
     invoice_instance.pix_indicator = False
 
