@@ -192,7 +192,7 @@ class Invoice:
     @property
     def payer(self):
         """ pagador """
-        return self._payer
+        return {getattr(FieldEnum, key.upper()).value: self._payer[key] for key in self._payer.keys()}
 
     @property
     def final_beneficiary(self):
@@ -480,33 +480,59 @@ class Invoice:
         self._fine = fine
 
     @payer.setter
-    def payer(self, value):
+    def payer(self, payer_data):
         """ pagador """
-        self._payer = value
+        if 'registration_type' not in payer_data.keys() or \
+           payer_data['registration_type'] not in [item.value for item in RegistrationType]:
+            raise ValueError("Invalid type, choose between the options: 1 - CPF; 2 - CNPJ.")
+
+        payer = {'registration_type': payer_data['registration_type']}
+
+        if 'registration_number' not in payer_data.keys():
+            raise ValueError("The registration number is required")
+
+        if 'name' not in payer_data.keys():
+            raise ValueError("The name is required")
+
+        if (payer_data['registration_type'] == 1 and not validate_cpf(str(payer_data['registration_number']))) or \
+           (payer_data['registration_type'] == 2 and not validate_cnpj(str(payer_data['registration_number']))):
+            raise ValueError("Invalid registration number, enter a valid CPF or CNPJ according to the type chosen")
+        payer['registration_number'] = payer_data['registration_number']
+        payer['name'] = payer_data['name']
+        payer['address'] = payer_data['address']
+        payer['cep'] = payer_data['cep']
+        payer['city'] = payer_data['city']
+        payer['district'] = payer_data['district']
+        payer['state'] = payer_data['state']
+        payer['phone'] = payer_data['phone']
+
+        self._payer = payer
 
     @final_beneficiary.setter
-    def final_beneficiary(self, data):
+    def final_beneficiary(self, beneficiary_data):
         """ beneficiarioFinal """
         if self._title_type_code == 32:
             raise ValueError("proposal slip does not allow final beneficiary")
 
-        if 'registration_type' not in data.keys() or \
-           data['registration_type'] not in [item.value for item in RegistrationType]:
+        if 'registration_type' not in beneficiary_data.keys() or \
+           beneficiary_data['registration_type'] not in [item.value for item in RegistrationType]:
             raise ValueError("Invalid type, choose between the options: 1 - CPF; 2 - CNPJ.")
 
-        final_beneficiary = {'registration_type': data['registration_type']}
+        final_beneficiary = {'registration_type': beneficiary_data['registration_type']}
 
-        if 'registration_number' not in data.keys():
+        if 'registration_number' not in beneficiary_data.keys():
             raise ValueError("The registration number is required")
 
-        if 'name' not in data.keys():
+        if 'name' not in beneficiary_data.keys():
             raise ValueError("The name is required")
 
-        if (data['registration_type'] == 1 and not validate_cpf(str(data['registration_number']))) or \
-           (data['registration_type'] == 2 and not validate_cnpj(str(data['registration_number']))):
+        if (beneficiary_data['registration_type'] == 1 and
+            not validate_cpf(str(beneficiary_data['registration_number']))) or \
+           (beneficiary_data['registration_type'] == 2 and
+            not validate_cnpj(str(beneficiary_data['registration_number']))):
             raise ValueError("Invalid registration number, enter a valid CPF or CNPJ according to the type chosen")
-        final_beneficiary['registration_number'] = data['registration_number']
-        final_beneficiary['name'] = data['name']
+        final_beneficiary['registration_number'] = beneficiary_data['registration_number']
+        final_beneficiary['name'] = beneficiary_data['name']
 
         self._final_beneficiary = final_beneficiary
 
@@ -658,15 +684,15 @@ if __name__ == '__main__':
         "value": 10.00
     }
     invoice_instance.payer = {
-        "tipoInscricao": 1,
-        "numeroInscricao": 97965940132,
-        "nome": "Odorico Paraguassu",
-        "endereco": "Avenida Dias Gomes 1970",
+        "registration_type": 1,
+        "registration_number": 97965940132,
+        "name": "Odorico Paraguassu",
+        "address": "Avenida Dias Gomes 1970",
         "cep": 77458000,
-        "cidade": "Sucupira",
-        "bairro": "Centro",
-        "uf": "TO",
-        "telefone": "63987654321"
+        "city": "Sucupira",
+        "district": "Centro",
+        "state": "TO",
+        "phone": "63987654321"
     }
     invoice_instance.final_beneficiary = {
         "registration_type": 2,

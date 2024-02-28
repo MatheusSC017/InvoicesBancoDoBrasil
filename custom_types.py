@@ -10,6 +10,12 @@ class FieldEnum(Enum):
     REGISTRATION_TYPE = "tipoInscricao"
     REGISTRATION_NUMBER = "numeroInscricao"
     NAME = "nome"
+    ADDRESS = "endereco"
+    CEP = "cep"
+    CITY = "cidade"
+    DISTRICT = "bairro"
+    STATE = "uf"
+    PHONE = "telefone"
 
 
 class TitleTypeCode(Enum):
