@@ -1,6 +1,7 @@
 from patterns import value_pattern, date_pattern, percentage_pattern, no_pattern
 from validators import validate_date, validate_cpf, validate_cnpj
 from custom_types import LatePaymentType, Fine, RegistrationType, DiscountType, TitleTypeCode, FieldEnum
+import json
 
 FIELDS = {
     "type": "tipo",
@@ -577,6 +578,10 @@ class Invoice:
 
         return result
 
+    def save_pattern(self, name):
+        with open(name + '.json', 'w') as f:
+            json.dump(self.__dict__, f, ensure_ascii=False, indent=4)
+
 
 if __name__ == '__main__':
     invoice = {
@@ -704,3 +709,5 @@ if __name__ == '__main__':
     print(invoice_instance.to_dict() == invoice)
     print(invoice)
     print(invoice_instance.to_dict())
+
+    invoice_instance.save_pattern("invoice_pattern")
