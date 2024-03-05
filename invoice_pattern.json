@@ -1,0 +1,60 @@
+{
+    "_agreement_number": 3128557,
+    "_wallet_number": 17,
+    "_wallet_variation_number": 35,
+    "_modality_code": 1,
+    "_issue_date": "2024-02-15",
+    "_expiration_date": "2024-03-31",
+    "_original_value": 123.45,
+    "_rebate_value": 12.34,
+    "_number_of_protest_days": 5,
+    "_number_of_days_to_negative": 0,
+    "_negative_organ": 10,
+    "_indicator_accepts_expired_title": true,
+    "_number_of_days_receiving_deadline": 1,
+    "_accept_code": false,
+    "_title_type_code": 2,
+    "_description_type_title": "DM",
+    "_partial_receipt_permission_indicator": true,
+    "_beneficiary_title_number": "2A584SDGTE8JN2G",
+    "_customer_title_number": "0689531552",
+    "_discount": {
+        "type": 2,
+        "expiration_date": "2024-02-28",
+        "percentage": 0.05
+    },
+    "_second_discount": {
+        "expiration_date": "2024-03-10",
+        "percentage": 0.04
+    },
+    "_third_discount": {
+        "expiration_date": "2024-03-20",
+        "percentage": 0.03
+    },
+    "_late_payment_interest": {
+        "type": 2,
+        "percentage": 0.01
+    },
+    "_fine": {
+        "type": 1,
+        "date": "2024-04-01",
+        "value": 10.0
+    },
+    "_payer": {
+        "registration_type": 1,
+        "registration_number": 97965940132,
+        "name": "Odorico Paraguassu",
+        "address": "Avenida Dias Gomes 1970",
+        "cep": 77458000,
+        "city": "Sucupira",
+        "district": "Centro",
+        "state": "TO",
+        "phone": "63987654321"
+    },
+    "_final_beneficiary": {
+        "registration_type": 2,
+        "registration_number": 74910037000193,
+        "name": "Dirceu Borboleta"
+    },
+    "_pix_indicator": false
+}

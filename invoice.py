@@ -582,6 +582,12 @@ class Invoice:
         with open(name + '.json', 'w') as f:
             json.dump(self.__dict__, f, ensure_ascii=False, indent=4)
 
+    def load_pattern(self, path):
+        with open(path, 'r') as f:
+            invoice_data = json.load(f)
+            for key, value in invoice_data.items():
+                setattr(self, key, value)
+
 
 if __name__ == '__main__':
     invoice = {
@@ -706,8 +712,13 @@ if __name__ == '__main__':
     }
     invoice_instance.pix_indicator = False
 
-    print(invoice_instance.to_dict() == invoice)
-    print(invoice)
-    print(invoice_instance.to_dict())
+    # print(invoice_instance.to_dict() == invoice)
+    # print(invoice)
+    # print(invoice_instance.to_dict())
 
     invoice_instance.save_pattern("invoice_pattern")
+
+    new_invoide_instance = Invoice()
+    new_invoide_instance.load_pattern("invoice_pattern.json")
+
+    print(new_invoide_instance.to_dict() == invoice_instance.to_dict())
