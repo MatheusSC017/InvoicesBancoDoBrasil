@@ -141,4 +141,4 @@ if __name__ == '__main__':
 
     bb_charging_api = BBChargingAPI(test_environment=True)
     print(bb_charging_api.get_invoices('A', 452, 123873))
-    print(bb_charging_api.register_invoice(body_request))
+    # print(bb_charging_api.register_invoice(body_request))

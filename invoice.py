@@ -1,7 +1,11 @@
 from patterns import value_pattern, date_pattern, percentage_pattern, no_pattern
 from validators import validate_date, validate_cpf, validate_cnpj
 from custom_types import LatePaymentType, Fine, RegistrationType, DiscountType, TitleTypeCode, FieldEnum
+from pyboleto.bank.bancodobrasil import BoletoBB
+from pyboleto.pdf import BoletoPDF
+import datetime
 import json
+import os
 
 FIELDS = {
     "type": "tipo",
@@ -588,11 +592,42 @@ class Invoice:
             for key, value in invoice_data.items():
                 setattr(self, key, value)
 
+    def print(self, path='', name=''):
+        d = BoletoBB(7, 2)
+        d.nosso_numero = self._customer_title_number
+        d.numero_documento = '27.030195.10'
+        d.convenio = self._agreement_number
+        d.especie_documento = self._description_type_title
+
+        d.carteira = str(self._wallet_number)
+        d.cedente = self._final_beneficiary['name']
+        d.cedente_documento = str(self._final_beneficiary['registration_number'])
+        d.cedente_endereco = ("" + "" + "")
+        d.agencia_cedente = '9999'
+        d.conta_cedente = '99999'
+
+        d.data_vencimento = datetime.date.fromisoformat(self._expiration_date)
+        d.data_documento = datetime.date.fromisoformat(self._issue_date)
+        d.data_processamento = datetime.date.fromisoformat(self._issue_date)
+
+        d.instrucoes = []
+        d.demonstrativo = []
+        d.valor_documento = self._original_value
+
+        d.sacado = [
+            self._payer['name'],
+            f"{self._payer['address']} - {self._payer['district']} - {self._payer['city']}/{self._payer['state']} - CEP. {self._payer['cep']}",
+        ]
+
+        boleto = BoletoPDF(os.path.join(path, f'{name}.pdf' if name else f'boleto-bb-{self._payer["name"]}.pdf'))
+        boleto.drawBoleto(d)
+        boleto.save()
+
 
 if __name__ == '__main__':
     invoice = {
         "numeroConvenio": 3128557,
-        "numeroCarteira": 17,
+        "numeroCarteira": 18,
         "numeroVariacaoCarteira": 35,
         "codigoModalidade": 1,
         "dataEmissao": "15.02.2024",
@@ -654,7 +689,7 @@ if __name__ == '__main__':
     invoice_instance = Invoice()
 
     invoice_instance.agreement_number = 3128557
-    invoice_instance.wallet_number = 17
+    invoice_instance.wallet_number = 18
     invoice_instance.wallet_variation_number = 35
     invoice_instance.modality_code = 1
     invoice_instance.issue_date = "2024-02-15"
@@ -712,9 +747,9 @@ if __name__ == '__main__':
     }
     invoice_instance.pix_indicator = False
 
-    # print(invoice_instance.to_dict() == invoice)
-    # print(invoice)
-    # print(invoice_instance.to_dict())
+    print(invoice_instance.to_dict() == invoice)
+    print(invoice)
+    print(invoice_instance.to_dict())
 
     invoice_instance.save_pattern("invoice_pattern")
 
@@ -722,3 +757,10 @@ if __name__ == '__main__':
     new_invoide_instance.load_pattern("invoice_pattern.json")
 
     print(new_invoide_instance.to_dict() == invoice_instance.to_dict())
+
+    invoice_instance.print()
+
+    """
+    campoUtilizacaoBeneficiario
+    mensagemBloquetoOcorrencia
+    """
