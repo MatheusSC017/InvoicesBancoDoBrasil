@@ -63,6 +63,24 @@ class BBChargingAPI:
 
         return response.content
 
+    def get_invoice(self, agreement, billing_title_number):
+        token = self._get_token()
+        application_key = os.getenv('APPLICATION_KEY')
+
+        headers = {
+            'Authorization': token,
+            'X-Developer-Application-Key': application_key,
+            'Accept': 'application/json',
+        }
+
+        params = {
+            'numeroConvenio': agreement,
+        }
+
+        response = requests.get(f'{self.base_url}/boletos/{billing_title_number}', params=params, headers=headers)
+
+        return response.content
+
     def register_invoice(self, invoice_info):
         token = self._get_token(scope_info=False)
         application_key = os.getenv('APPLICATION_KEY')
@@ -140,5 +158,6 @@ if __name__ == '__main__':
     }
 
     bb_charging_api = BBChargingAPI(test_environment=True)
+    print(bb_charging_api.get_invoice('3128557', '00031285570689531552'))
     print(bb_charging_api.get_invoices('A', 452, 123873))
-    # print(bb_charging_api.register_invoice(body_request))
+    print(bb_charging_api.register_invoice(body_request))
