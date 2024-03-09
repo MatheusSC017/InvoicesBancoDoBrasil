@@ -213,16 +213,22 @@ class Invoice:
     @agreement_number.setter
     def agreement_number(self, value):
         """ numeroConvenio """
-        if not isinstance(value, int) or not(1000000 <= value <= 9999999):
+
+        try:
+            if not(1000000 <= int(value) <= 9999999):
+                raise ValueError("For the contract number only a 7-digit number will be accepted")
+        except ValueError:
             raise ValueError("For the contract number only a 7-digit number will be accepted")
-        self._agreement_number = value
+        self._agreement_number = int(value)
 
     @wallet_number.setter
     def wallet_number(self, value):
         """ numeroCarteira """
-        if not isinstance(value, int):
+        try:
+            self._wallet_number = int(value)
+        except ValueError:
             raise ValueError("Wallet number only accepts number values")
-        self._wallet_number = value
+
 
     @wallet_variation_number.setter
     def wallet_variation_number(self, value):
@@ -509,7 +515,7 @@ class Invoice:
         payer['city'] = payer_data['city']
         payer['district'] = payer_data['district']
         payer['state'] = payer_data['state']
-        payer['phone'] = payer_data['phone']
+        payer['phone'] = payer_data.get('phone')
 
         self._payer = payer
 
@@ -581,6 +587,67 @@ class Invoice:
             result['terceiroDesconto'] = self.third_discount
 
         return result
+
+    def load_dict(self, values, agreement, billing_title_number):
+        self.agreement_number = agreement
+        self.wallet_number = values.get('numeroCarteiraCobranca')
+        self.wallet_variation_number = values.get('numeroVariacaoCarteiraCobranca')
+        self.modality_code = values.get('codigoModalidadeTitulo')
+        self.issue_date = '-'.join(reversed(values.get('dataEmissaoTituloCobranca').split('.')))
+        self.expiration_date = '-'.join(reversed(values.get('dataVencimentoTituloCobranca').split('.')))
+        self.original_value = values.get('valorOriginalTituloCobranca')
+        self.rebate_value = values.get('valorAbatimentoTituloCobranca')
+        self.number_of_protest_days = values.get('quantidadeDiaProtesto')
+        self.number_of_days_receiving_deadline = values.get('quantidadeDiaPrazoLimiteRecebimento')
+        self.accept_code = values.get('codigoAceiteTituloCobranca') == 'S'
+        self.title_type_code = values.get('codigoTipoTituloCobranca')
+        self.partial_receipt_permission_indicator = values.get('indicadorPermissaoRecebimentoParcial') == 'S'
+        self.beneficiary_title_number = values.get('numeroTituloCedenteCobranca')
+        self.customer_title_number = billing_title_number[10:]
+        self.discount = {
+            "type": values.get('codigoSegundoDescontoTitulo'),
+            "expiration_date": '-'.join(reversed(values.get('dataDescontoTitulo').split('.'))),
+            "percentage": values.get('percentualDescontoTitulo') / 100,
+            "value": values.get('valorDescontoTitulo'),
+        }
+        self.late_payment_interest = {
+            "type": values.get('codigoTipoJuroMora'),
+            "percentage": values.get('percentualJuroMoraTitulo') / 100,
+            "value": values.get('valorJuroMoraTitulo'),
+        }
+        self.fine = {
+            "type": values.get('codigoTipoMulta'),
+            "date": '-'.join(reversed(values.get('dataMultaTitulo').split('.'))),
+            "percentage": values.get('percentualMultaTitulo') / 100,
+            "value": values.get('valorMultaTituloCobranca'),
+        }
+        self.payer = {
+            "registration_type": values.get('codigoTipoInscricaoSacado'),
+            "registration_number": values.get('numeroInscricaoSacadoCobranca'),
+            "name": values.get('nomeSacadoCobranca'),
+            "address": values.get('textoEnderecoSacadoCobranca'),
+            "cep": values.get('numeroCepSacadoCobranca'),
+            "city": values.get('nomeMunicipioSacadoCobranca'),
+            "district": values.get('nomeBairroSacadoCobranca'),
+            "state": values.get('siglaUnidadeFederacaoSacadoCobranca'),
+        }
+        self.final_beneficiary = {
+            "registration_type": values.get('codigoTipoInscricaoSacador'),
+            "registration_number": values.get('numeroInscricaoSacadorAvalista'),
+            "name": values.get('nomeSacadorAvalistaTitulo')
+        }
+
+        if self._discount['type'] != 0:
+            self.second_discount = {
+                "expiration_date": '-'.join(reversed(values.get('dataSegundoDescontoTitulo').split('.'))),
+                "percentage": values.get('percentualSegundoDescontoTitulo') / 100,
+                "value": values.get('valorSegundoDescontoTitulo'),
+            }
+            self.third_discount = {
+                "expiration_date": '-'.join(reversed(values.get('dataTerceiroDescontoTitulo').split('.'))),
+                "percentage": values.get('percentualTerceiroDescontoTitulo') / 100,
+                "value": values.get('valorTerceiroDescontoTitulo'),
+            }
 
     def save_pattern(self, name):
         with open(name + '.json', 'w') as f:
@@ -688,8 +755,8 @@ if __name__ == '__main__':
 
     invoice_instance = Invoice()
 
-    invoice_instance.agreement_number = 3128557
-    invoice_instance.wallet_number = 18
+    invoice_instance.agreement_number = '3128557'
+    invoice_instance.wallet_number = '18'
     invoice_instance.wallet_variation_number = 35
     invoice_instance.modality_code = 1
     invoice_instance.issue_date = "2024-02-15"
