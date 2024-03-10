@@ -88,10 +88,14 @@ class Invoice:
     @property
     def issue_date(self):
         """ dataEmissao """
+        if self._issue_date is None:
+            raise ValueError("No value defined for issue date")
         return date_pattern(self._issue_date)
 
     @property
     def expiration_date(self):
+        if self._expiration_date is None:
+            raise ValueError("No value defined for expiration date")
         return date_pattern(self._expiration_date)
 
     @property
@@ -193,23 +197,31 @@ class Invoice:
     @property
     def late_payment_interest(self):
         """ jurosMora """
+        if self._late_payment_interest is None:
+            raise ValueError("No value defined for late payment interest")
         return {getattr(FieldEnum, key.upper()).value: FIELDS_FORMATATION[key](self._late_payment_interest[key])
                 for key in self._late_payment_interest.keys()}
 
     @property
     def fine(self):
         """ multa """
+        if self._fine is None:
+            raise ValueError("No value defined for fine")
         return {getattr(FieldEnum, key.upper()).value: FIELDS_FORMATATION[key](self._fine[key])
                 for key in self._fine.keys()}
 
     @property
     def payer(self):
         """ pagador """
+        if self._payer is None:
+            raise ValueError("No value defined for payer")
         return {getattr(FieldEnum, key.upper()).value: self._payer[key] for key in self._payer.keys()}
 
     @property
     def final_beneficiary(self):
         """ beneficiarioFinal """
+        if self._final_beneficiary is None:
+            raise ValueError("No value defined for final beneficiary")
         return {getattr(FieldEnum, key.upper()).value: self._final_beneficiary[key]
                 for key in self._final_beneficiary.keys()}
 
@@ -773,79 +785,79 @@ if __name__ == '__main__':
         },
     }
 
-    # invoice_instance = Invoice()
-    #
-    # invoice_instance.agreement_number = '3128557'
-    # invoice_instance.wallet_number = '18'
-    # invoice_instance.wallet_variation_number = 35
-    # invoice_instance.modality_code = 1
-    # invoice_instance.issue_date = "2024-02-15"
-    # invoice_instance.expiration_date = "2024-03-31"
-    # invoice_instance.original_value = 123.45
-    # invoice_instance.rebate_value = 12.34
-    # invoice_instance.number_of_protest_days = 5
-    # invoice_instance.number_of_days_to_negative = 0
-    # invoice_instance.negative_organ = 10
-    # invoice_instance.indicator_accepts_expired_title = True
-    # invoice_instance.number_of_days_receiving_deadline = 1
-    # invoice_instance.accept_code = False
-    # invoice_instance.title_type_code = 2
-    # invoice_instance.description_type_title = "DM"
-    # invoice_instance.partial_receipt_permission_indicator = True
-    # invoice_instance.beneficiary_title_number = "2A584SDGTE8JN2G"
-    # invoice_instance.customer_title_number = "0689531552"
-    # invoice_instance.discount = {
-    #     "type": 2,
-    #     "expiration_date": "2024-02-28",
-    #     "percentage": 0.05
-    # }
-    # invoice_instance.second_discount = {
-    #     "expiration_date": "2024-03-10",
-    #     "percentage": 0.04
-    # }
-    # invoice_instance.third_discount = {
-    #     "expiration_date": "2024-03-20",
-    #     "percentage": 0.03
-    # }
-    # invoice_instance.late_payment_interest = {
-    #     "type": 2,
-    #     "percentage": 0.01
-    # }
-    # invoice_instance.fine = {
-    #     "type": 1,
-    #     "date": "2024-04-01",
-    #     "value": 10.00
-    # }
-    # invoice_instance.payer = {
-    #     "registration_type": 1,
-    #     "registration_number": 97965940132,
-    #     "name": "Odorico Paraguassu",
-    #     "address": "Avenida Dias Gomes 1970",
-    #     "cep": 77458000,
-    #     "city": "Sucupira",
-    #     "district": "Centro",
-    #     "state": "TO",
-    #     "phone": "63987654321"
-    # }
-    # invoice_instance.final_beneficiary = {
-    #     "registration_type": 2,
-    #     "registration_number": 74910037000193,
-    #     "name": "Dirceu Borboleta"
-    # }
-    # invoice_instance.pix_indicator = False
-    #
-    # print(invoice_instance.to_dict() == invoice)
-    # print(invoice)
-    # print(invoice_instance.to_dict())
-    #
-    # invoice_instance.save_pattern("invoice_pattern")
-    #
-    # new_invoide_instance = Invoice()
-    # new_invoide_instance.load_pattern("invoice_pattern.json")
-    #
-    # print(new_invoide_instance.to_dict() == invoice_instance.to_dict())
-    #
-    # invoice_instance.print()
+    invoice_instance = Invoice()
+
+    invoice_instance.agreement_number = '3128557'
+    invoice_instance.wallet_number = '18'
+    invoice_instance.wallet_variation_number = 35
+    invoice_instance.modality_code = 1
+    invoice_instance.issue_date = "2024-02-15"
+    invoice_instance.expiration_date = "2024-03-31"
+    invoice_instance.original_value = 123.45
+    invoice_instance.rebate_value = 12.34
+    invoice_instance.number_of_protest_days = 5
+    invoice_instance.number_of_days_to_negative = 0
+    invoice_instance.negative_organ = 10
+    invoice_instance.indicator_accepts_expired_title = True
+    invoice_instance.number_of_days_receiving_deadline = 1
+    invoice_instance.accept_code = False
+    invoice_instance.title_type_code = 2
+    invoice_instance.description_type_title = "DM"
+    invoice_instance.partial_receipt_permission_indicator = True
+    invoice_instance.beneficiary_title_number = "2A584SDGTE8JN2G"
+    invoice_instance.customer_title_number = "0689531552"
+    invoice_instance.discount = {
+        "type": 2,
+        "expiration_date": "2024-02-28",
+        "percentage": 0.05
+    }
+    invoice_instance.second_discount = {
+        "expiration_date": "2024-03-10",
+        "percentage": 0.04
+    }
+    invoice_instance.third_discount = {
+        "expiration_date": "2024-03-20",
+        "percentage": 0.03
+    }
+    invoice_instance.late_payment_interest = {
+        "type": 2,
+        "percentage": 0.01
+    }
+    invoice_instance.fine = {
+        "type": 1,
+        "date": "2024-04-01",
+        "value": 10.00
+    }
+    invoice_instance.payer = {
+        "registration_type": 1,
+        "registration_number": 97965940132,
+        "name": "Odorico Paraguassu",
+        "address": "Avenida Dias Gomes 1970",
+        "cep": 77458000,
+        "city": "Sucupira",
+        "district": "Centro",
+        "state": "TO",
+        "phone": "63987654321"
+    }
+    invoice_instance.final_beneficiary = {
+        "registration_type": 2,
+        "registration_number": 74910037000193,
+        "name": "Dirceu Borboleta"
+    }
+    invoice_instance.pix_indicator = False
+
+    print(invoice_instance.to_dict() == invoice)
+    print(invoice)
+    print(invoice_instance.to_dict())
+
+    invoice_instance.save_pattern("invoice_pattern")
+
+    new_invoide_instance = Invoice()
+    new_invoide_instance.load_pattern("invoice_pattern.json")
+
+    print(new_invoide_instance.to_dict() == invoice_instance.to_dict())
+
+    invoice_instance.print()
 
     invoice_instance_load_api_info = Invoice(test_environment=True)
     invoice_instance_load_api_info.load_api('3128557', '00031285570689531598')
