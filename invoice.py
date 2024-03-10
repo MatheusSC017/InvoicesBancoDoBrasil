@@ -3,6 +3,8 @@ from validators import validate_date, validate_cpf, validate_cnpj
 from custom_types import LatePaymentType, Fine, RegistrationType, DiscountType, TitleTypeCode, FieldEnum
 from pyboleto.bank.bancodobrasil import BoletoBB
 from pyboleto.pdf import BoletoPDF
+from api import BBChargingAPI
+import ast
 import datetime
 import json
 import os
@@ -28,7 +30,9 @@ FIELDS_FORMATATION = {
 
 
 class Invoice:
-    def __init__(self):
+
+    def __init__(self, test_environment=False):
+        self.test_environment = test_environment
         self._agreement_number = None
         self._wallet_number = None
         self._wallet_variation_number = None
@@ -56,6 +60,10 @@ class Invoice:
         self._payer = None
         self._final_beneficiary = None
         self._pix_indicator = False
+
+    @property
+    def connection(self):
+        return BBChargingAPI(test_environment=self.test_environment)
 
     @property
     def agreement_number(self):
@@ -217,8 +225,8 @@ class Invoice:
         try:
             if not(1000000 <= int(value) <= 9999999):
                 raise ValueError("For the contract number only a 7-digit number will be accepted")
-        except ValueError:
-            raise ValueError("For the contract number only a 7-digit number will be accepted")
+        except TypeError:
+            raise TypeError("For the contract number only numbers values will be accepted")
         self._agreement_number = int(value)
 
     @wallet_number.setter
@@ -226,23 +234,27 @@ class Invoice:
         """ numeroCarteira """
         try:
             self._wallet_number = int(value)
-        except ValueError:
-            raise ValueError("Wallet number only accepts number values")
-
+        except TypeError:
+            raise TypeError("Wallet number only accepts number values")
 
     @wallet_variation_number.setter
     def wallet_variation_number(self, value):
         """ numeroVariacaoCarteira """
-        if not isinstance(value, int):
-            raise ValueError("Wallet variation number only accepts number values")
-        self._wallet_variation_number = value
+        try:
+            self._wallet_variation_number = int(value)
+        except TypeError:
+            raise TypeError("Wallet variation number only accepts number values")
 
     @modality_code.setter
     def modality_code(self, value):
         """ codigoModalidade """
-        if value != 1 and value != 4:
-            raise ValueError("Modality code only accepts the numbers 1 and 4")
-        self._modality_code = value
+        try:
+            value = int(value)
+            if value != 1 and value != 4:
+                raise ValueError("Modality code only accepts the numbers 1 and 4")
+            self._modality_code = value
+        except TypeError:
+            raise TypeError("Modality only accepts number values")
 
     @issue_date.setter
     def issue_date(self, value):
@@ -538,9 +550,9 @@ class Invoice:
             raise ValueError("The name is required")
 
         if (beneficiary_data['registration_type'] == 1 and
-            not validate_cpf(str(beneficiary_data['registration_number']))) or \
+           not validate_cpf(str(beneficiary_data['registration_number']))) or \
            (beneficiary_data['registration_type'] == 2 and
-            not validate_cnpj(str(beneficiary_data['registration_number']))):
+           not validate_cnpj(str(beneficiary_data['registration_number']))):
             raise ValueError("Invalid registration number, enter a valid CPF or CNPJ according to the type chosen")
         final_beneficiary['registration_number'] = beneficiary_data['registration_number']
         final_beneficiary['name'] = beneficiary_data['name']
@@ -588,65 +600,72 @@ class Invoice:
 
         return result
 
-    def load_dict(self, values, agreement, billing_title_number):
+    def load_api(self, agreement, billing_title_number):
+        invoice_values = self.connection.get_invoice(agreement, billing_title_number)
+        invoice_values = ast.literal_eval(invoice_values.decode('UTF-8'))
+        if 'errors' in invoice_values.keys():
+            for error in invoice_values['errors']:
+                print(error)
+            return
+
         self.agreement_number = agreement
-        self.wallet_number = values.get('numeroCarteiraCobranca')
-        self.wallet_variation_number = values.get('numeroVariacaoCarteiraCobranca')
-        self.modality_code = values.get('codigoModalidadeTitulo')
-        self.issue_date = '-'.join(reversed(values.get('dataEmissaoTituloCobranca').split('.')))
-        self.expiration_date = '-'.join(reversed(values.get('dataVencimentoTituloCobranca').split('.')))
-        self.original_value = values.get('valorOriginalTituloCobranca')
-        self.rebate_value = values.get('valorAbatimentoTituloCobranca')
-        self.number_of_protest_days = values.get('quantidadeDiaProtesto')
-        self.number_of_days_receiving_deadline = values.get('quantidadeDiaPrazoLimiteRecebimento')
-        self.accept_code = values.get('codigoAceiteTituloCobranca') == 'S'
-        self.title_type_code = values.get('codigoTipoTituloCobranca')
-        self.partial_receipt_permission_indicator = values.get('indicadorPermissaoRecebimentoParcial') == 'S'
-        self.beneficiary_title_number = values.get('numeroTituloCedenteCobranca')
+        self.wallet_number = invoice_values.get('numeroCarteiraCobranca')
+        self.wallet_variation_number = invoice_values.get('numeroVariacaoCarteiraCobranca')
+        self.modality_code = invoice_values.get('codigoModalidadeTitulo')
+        self.issue_date = '-'.join(reversed(invoice_values.get('dataEmissaoTituloCobranca').split('.')))
+        self.expiration_date = '-'.join(reversed(invoice_values.get('dataVencimentoTituloCobranca').split('.')))
+        self.original_value = invoice_values.get('valorOriginalTituloCobranca')
+        self.rebate_value = invoice_values.get('valorAbatimentoTituloCobranca')
+        self.number_of_protest_days = invoice_values.get('quantidadeDiaProtesto')
+        self.number_of_days_receiving_deadline = invoice_values.get('quantidadeDiaPrazoLimiteRecebimento')
+        self.accept_code = invoice_values.get('codigoAceiteTituloCobranca') == 'S'
+        self.title_type_code = invoice_values.get('codigoTipoTituloCobranca')
+        self.partial_receipt_permission_indicator = invoice_values.get('indicadorPermissaoRecebimentoParcial') == 'S'
+        self.beneficiary_title_number = invoice_values.get('numeroTituloCedenteCobranca')
         self.customer_title_number = billing_title_number[10:]
         self.discount = {
-            "type": values.get('codigoSegundoDescontoTitulo'),
-            "expiration_date": '-'.join(reversed(values.get('dataDescontoTitulo').split('.'))),
-            "percentage": values.get('percentualDescontoTitulo') / 100,
-            "value": values.get('valorDescontoTitulo'),
+            "type": invoice_values.get('codigoSegundoDescontoTitulo'),
+            "expiration_date": '-'.join(reversed(invoice_values.get('dataDescontoTitulo').split('.'))),
+            "percentage": invoice_values.get('percentualDescontoTitulo') / 100,
+            "value": invoice_values.get('valorDescontoTitulo'),
         }
         self.late_payment_interest = {
-            "type": values.get('codigoTipoJuroMora'),
-            "percentage": values.get('percentualJuroMoraTitulo') / 100,
-            "value": values.get('valorJuroMoraTitulo'),
+            "type": invoice_values.get('codigoTipoJuroMora'),
+            "percentage": invoice_values.get('percentualJuroMoraTitulo') / 100,
+            "value": invoice_values.get('valorJuroMoraTitulo'),
         }
         self.fine = {
-            "type": values.get('codigoTipoMulta'),
-            "date": '-'.join(reversed(values.get('dataMultaTitulo').split('.'))),
-            "percentage": values.get('percentualMultaTitulo') / 100,
-            "value": values.get('valorMultaTituloCobranca'),
+            "type": invoice_values.get('codigoTipoMulta'),
+            "date": '-'.join(reversed(invoice_values.get('dataMultaTitulo').split('.'))),
+            "percentage": invoice_values.get('percentualMultaTitulo') / 100,
+            "value": invoice_values.get('valorMultaTituloCobranca'),
         }
         self.payer = {
-            "registration_type": values.get('codigoTipoInscricaoSacado'),
-            "registration_number": values.get('numeroInscricaoSacadoCobranca'),
-            "name": values.get('nomeSacadoCobranca'),
-            "address": values.get('textoEnderecoSacadoCobranca'),
-            "cep": values.get('numeroCepSacadoCobranca'),
-            "city": values.get('nomeMunicipioSacadoCobranca'),
-            "district": values.get('nomeBairroSacadoCobranca'),
-            "state": values.get('siglaUnidadeFederacaoSacadoCobranca'),
+            "registration_type": invoice_values.get('codigoTipoInscricaoSacado'),
+            "registration_number": invoice_values.get('numeroInscricaoSacadoCobranca'),
+            "name": invoice_values.get('nomeSacadoCobranca'),
+            "address": invoice_values.get('textoEnderecoSacadoCobranca'),
+            "cep": invoice_values.get('numeroCepSacadoCobranca'),
+            "city": invoice_values.get('nomeMunicipioSacadoCobranca'),
+            "district": invoice_values.get('nomeBairroSacadoCobranca'),
+            "state": invoice_values.get('siglaUnidadeFederacaoSacadoCobranca'),
         }
         self.final_beneficiary = {
-            "registration_type": values.get('codigoTipoInscricaoSacador'),
-            "registration_number": values.get('numeroInscricaoSacadorAvalista'),
-            "name": values.get('nomeSacadorAvalistaTitulo')
+            "registration_type": invoice_values.get('codigoTipoInscricaoSacador'),
+            "registration_number": invoice_values.get('numeroInscricaoSacadorAvalista'),
+            "name": invoice_values.get('nomeSacadorAvalistaTitulo')
         }
 
         if self._discount['type'] != 0:
             self.second_discount = {
-                "expiration_date": '-'.join(reversed(values.get('dataSegundoDescontoTitulo').split('.'))),
-                "percentage": values.get('percentualSegundoDescontoTitulo') / 100,
-                "value": values.get('valorSegundoDescontoTitulo'),
+                "expiration_date": '-'.join(reversed(invoice_values.get('dataSegundoDescontoTitulo').split('.'))),
+                "percentage": invoice_values.get('percentualSegundoDescontoTitulo') / 100,
+                "value": invoice_values.get('valorSegundoDescontoTitulo'),
             }
             self.third_discount = {
-                "expiration_date": '-'.join(reversed(values.get('dataTerceiroDescontoTitulo').split('.'))),
-                "percentage": values.get('percentualTerceiroDescontoTitulo') / 100,
-                "value": values.get('valorTerceiroDescontoTitulo'),
+                "expiration_date": '-'.join(reversed(invoice_values.get('dataTerceiroDescontoTitulo').split('.'))),
+                "percentage": invoice_values.get('percentualTerceiroDescontoTitulo') / 100,
+                "value": invoice_values.get('valorTerceiroDescontoTitulo'),
             }
 
     def save_pattern(self, name):
@@ -683,7 +702,8 @@ class Invoice:
 
         d.sacado = [
             self._payer['name'],
-            f"{self._payer['address']} - {self._payer['district']} - {self._payer['city']}/{self._payer['state']} - CEP. {self._payer['cep']}",
+            f"{self._payer['address']} - {self._payer['district']} - {self._payer['city']}/"
+            f"{self._payer['state']} - CEP. {self._payer['cep']}",
         ]
 
         boleto = BoletoPDF(os.path.join(path, f'{name}.pdf' if name else f'boleto-bb-{self._payer["name"]}.pdf'))
@@ -753,79 +773,83 @@ if __name__ == '__main__':
         },
     }
 
-    invoice_instance = Invoice()
+    # invoice_instance = Invoice()
+    #
+    # invoice_instance.agreement_number = '3128557'
+    # invoice_instance.wallet_number = '18'
+    # invoice_instance.wallet_variation_number = 35
+    # invoice_instance.modality_code = 1
+    # invoice_instance.issue_date = "2024-02-15"
+    # invoice_instance.expiration_date = "2024-03-31"
+    # invoice_instance.original_value = 123.45
+    # invoice_instance.rebate_value = 12.34
+    # invoice_instance.number_of_protest_days = 5
+    # invoice_instance.number_of_days_to_negative = 0
+    # invoice_instance.negative_organ = 10
+    # invoice_instance.indicator_accepts_expired_title = True
+    # invoice_instance.number_of_days_receiving_deadline = 1
+    # invoice_instance.accept_code = False
+    # invoice_instance.title_type_code = 2
+    # invoice_instance.description_type_title = "DM"
+    # invoice_instance.partial_receipt_permission_indicator = True
+    # invoice_instance.beneficiary_title_number = "2A584SDGTE8JN2G"
+    # invoice_instance.customer_title_number = "0689531552"
+    # invoice_instance.discount = {
+    #     "type": 2,
+    #     "expiration_date": "2024-02-28",
+    #     "percentage": 0.05
+    # }
+    # invoice_instance.second_discount = {
+    #     "expiration_date": "2024-03-10",
+    #     "percentage": 0.04
+    # }
+    # invoice_instance.third_discount = {
+    #     "expiration_date": "2024-03-20",
+    #     "percentage": 0.03
+    # }
+    # invoice_instance.late_payment_interest = {
+    #     "type": 2,
+    #     "percentage": 0.01
+    # }
+    # invoice_instance.fine = {
+    #     "type": 1,
+    #     "date": "2024-04-01",
+    #     "value": 10.00
+    # }
+    # invoice_instance.payer = {
+    #     "registration_type": 1,
+    #     "registration_number": 97965940132,
+    #     "name": "Odorico Paraguassu",
+    #     "address": "Avenida Dias Gomes 1970",
+    #     "cep": 77458000,
+    #     "city": "Sucupira",
+    #     "district": "Centro",
+    #     "state": "TO",
+    #     "phone": "63987654321"
+    # }
+    # invoice_instance.final_beneficiary = {
+    #     "registration_type": 2,
+    #     "registration_number": 74910037000193,
+    #     "name": "Dirceu Borboleta"
+    # }
+    # invoice_instance.pix_indicator = False
+    #
+    # print(invoice_instance.to_dict() == invoice)
+    # print(invoice)
+    # print(invoice_instance.to_dict())
+    #
+    # invoice_instance.save_pattern("invoice_pattern")
+    #
+    # new_invoide_instance = Invoice()
+    # new_invoide_instance.load_pattern("invoice_pattern.json")
+    #
+    # print(new_invoide_instance.to_dict() == invoice_instance.to_dict())
+    #
+    # invoice_instance.print()
 
-    invoice_instance.agreement_number = '3128557'
-    invoice_instance.wallet_number = '18'
-    invoice_instance.wallet_variation_number = 35
-    invoice_instance.modality_code = 1
-    invoice_instance.issue_date = "2024-02-15"
-    invoice_instance.expiration_date = "2024-03-31"
-    invoice_instance.original_value = 123.45
-    invoice_instance.rebate_value = 12.34
-    invoice_instance.number_of_protest_days = 5
-    invoice_instance.number_of_days_to_negative = 0
-    invoice_instance.negative_organ = 10
-    invoice_instance.indicator_accepts_expired_title = True
-    invoice_instance.number_of_days_receiving_deadline = 1
-    invoice_instance.accept_code = False
-    invoice_instance.title_type_code = 2
-    invoice_instance.description_type_title = "DM"
-    invoice_instance.partial_receipt_permission_indicator = True
-    invoice_instance.beneficiary_title_number = "2A584SDGTE8JN2G"
-    invoice_instance.customer_title_number = "0689531552"
-    invoice_instance.discount = {
-        "type": 2,
-        "expiration_date": "2024-02-28",
-        "percentage": 0.05
-    }
-    invoice_instance.second_discount = {
-        "expiration_date": "2024-03-10",
-        "percentage": 0.04
-    }
-    invoice_instance.third_discount = {
-        "expiration_date": "2024-03-20",
-        "percentage": 0.03
-    }
-    invoice_instance.late_payment_interest = {
-        "type": 2,
-        "percentage": 0.01
-    }
-    invoice_instance.fine = {
-        "type": 1,
-        "date": "2024-04-01",
-        "value": 10.00
-    }
-    invoice_instance.payer = {
-        "registration_type": 1,
-        "registration_number": 97965940132,
-        "name": "Odorico Paraguassu",
-        "address": "Avenida Dias Gomes 1970",
-        "cep": 77458000,
-        "city": "Sucupira",
-        "district": "Centro",
-        "state": "TO",
-        "phone": "63987654321"
-    }
-    invoice_instance.final_beneficiary = {
-        "registration_type": 2,
-        "registration_number": 74910037000193,
-        "name": "Dirceu Borboleta"
-    }
-    invoice_instance.pix_indicator = False
-
-    print(invoice_instance.to_dict() == invoice)
-    print(invoice)
-    print(invoice_instance.to_dict())
-
-    invoice_instance.save_pattern("invoice_pattern")
-
-    new_invoide_instance = Invoice()
-    new_invoide_instance.load_pattern("invoice_pattern.json")
-
-    print(new_invoide_instance.to_dict() == invoice_instance.to_dict())
-
-    invoice_instance.print()
+    invoice_instance_load_api_info = Invoice(test_environment=True)
+    invoice_instance_load_api_info.load_api('3128557', '00031285570689531598')
+    print(invoice_instance_load_api_info.to_dict())
 
     """
     campoUtilizacaoBeneficiario
